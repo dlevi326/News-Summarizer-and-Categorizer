@@ -2,6 +2,8 @@ from nltk import word_tokenize
 from nltk.stem import *
 import nltk.data
 from math import log
+from nltk.corpus import stopwords
+from pprint import pprint
 
 class Summarizer:
 
@@ -36,16 +38,35 @@ class Summarizer:
 
 		for token in tokens:
 			token = stemmer.stem(token)
+
+			if token in stopwords.words():
+				pass
 			
-			if token in self.wordFrequencies:
-				# Have seen this token already
-				self.wordFrequencies[token]+=1
-			else:
-				# Havent seen this toekn yet
-				self.totalWords+=1
-				self.wordFrequencies[token] = 1
+			if token not in stopwords.words():
+				if token in self.wordFrequencies:
+					# Have seen this token already
+					self.wordFrequencies[token]+=1
+					self.totalWords+=1
+				else:
+					# Havent seen this token yet
+					self.totalWords+=1
+					self.wordFrequencies[token] = 1
+
+		mostImportant = []
+
+		for key, value in sorted(self.wordFrequencies.iteritems(), key=lambda (v,k): (k,v), reverse=True):
+			mostImportant.append(key)
+
+		pprint(mostImportant)
+		#pprint(stopwords.words())
+
+		'''
 
 		for token in tokens:
+
+			if token in stopwords.words():
+				pass
+
 			token = stemmer.stem(token)
 			self.finalWordFrequencies[token] = (log(float(self.wordFrequencies[token])/float(self.totalWords)))
 
@@ -62,7 +83,8 @@ class Summarizer:
 				token = stemmer.stem(token)
 				self.sentenceFrequencies[sent]+=self.finalWordFrequencies[token]
 
-		print self.sentenceFrequencies
+		print min(self.sentenceFrequencies)
+		'''
 
 
 

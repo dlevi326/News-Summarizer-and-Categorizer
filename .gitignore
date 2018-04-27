@@ -1,3 +1,5 @@
 *.docx
 *.txt
 *.p
+*.DS_Store
+
