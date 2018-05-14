@@ -3,6 +3,8 @@
 
 # Use http://newspaper-demo.herokuapp.com/ to import data
 
+# Seki, Yohei. "Sentence Extraction by Tf Idf and Position Weighting from Newspap Er Articles." The Graduate University for Advanced Studies.
+
 from nltk import word_tokenize
 from nltk.stem import *
 import nltk.data
@@ -13,6 +15,7 @@ import string
 from nltk.tokenize import RegexpTokenizer
 import pickle
 import nltk
+from Tester import Tester
 
 class Summarizer:
 
@@ -28,8 +31,11 @@ class Summarizer:
 		self.uniqueWords = []
 
 	def train(self,trainfile):
+		# Train idf values based on training corpus
 
 		stemmer = PorterStemmer()
+
+		# Regexp tokenizer gave better results
 		tokenizer = RegexpTokenizer('\w+')
 
 		f = open(trainfile)
@@ -46,6 +52,7 @@ class Summarizer:
 
 			tokens = tokenizer.tokenize(text)
 
+			# Keep track of already encountered words in document
 			encounteredWords = []
 			for token in tokens:
 				token = stemmer.stem(token)
@@ -55,6 +62,8 @@ class Summarizer:
 
 				if token not in encounteredWords:
 					if token in self.docsThatContainWord:
+
+						# Add one to the # of documents that contain this word
 						self.docsThatContainWord[token] += 1
 					else:
 						self.docsThatContainWord[token] = 1
@@ -66,6 +75,7 @@ class Summarizer:
 			self.idf[word] = log(float(numDocs)/float(self.docsThatContainWord[word]))
 		f.close()
 
+		# Dump into pickle file
 		pickle.dump(self.idf,open('./idf.p','wb'))
 
 
@@ -73,23 +83,28 @@ class Summarizer:
 
 
 
-	def computeSentences(self,text):
+	def computeSentences(self,text): 
+
+		# Splits up sentences using nltk's built in handler
 		sent_detector = nltk.data.load('tokenizers/punkt/english.pickle')
 		generatedSentences = sent_detector.tokenize(text)
 		return generatedSentences
 
 		
 
-	def summarize(self, infile, outfile, numsentences,headline = None):
+	def summarize(self, infile, outfile, numsentences,headline = None,category = None):
 		self.infile = infile
 		self.outfile = outfile
 		self.numsentences = numsentences
+
+		# Open pickle file
 		self.idf = pickle.load(open('./idf.p','rb'))
 
 		ignoreWords = []
 
 		f = open(self.infile)
 
+		# Used to take care of any unknown chars in the new article (This was needed a lot)
 		text = f.read().decode('utf-8')
 
 		stemmer = PorterStemmer()
@@ -125,32 +140,13 @@ class Summarizer:
 				self.idf[token] = 10
 			self.tfidf[token] = float(self.tf[token])*float(self.idf[token])
 
-		#mostImportant = []
-		#for key, value in sorted(self.tfidf.iteritems(), key=lambda (v,k): (k,v), reverse=True):
-		#	mostImportant.append(key)
-
-
-		# Metric 1
-		'''
-		outputSentences = []
-		for word in mostImportant:
-			if len(outputSentences)>=self.numsentences:
-				break
-			for sent in origSentences:
-				if len(outputSentences)>=self.numsentences:
-					break
-				if sent not in outputSentences:
-					tokens = tokenizer.tokenize(sent)
-					if word in tokens:
-						outputSentences.append(sent)
-		'''
-
-		# Metric 2
+		# List of NLTK noun tags
 		NOUNS = ['NN', 'NNS', 'NNP', 'NNPS']
 		sentRank = {}
 		sentWeight = {}
 		totalWeightOfDocument = 0
 
+		# Computes headline phrases
 		headPhrases = 0
 		headPhraseWords = []
 		if(headline):
@@ -167,6 +163,7 @@ class Summarizer:
 			headWeights[word] = float(1)/float(headPhrases)
 
 
+		# Calculating weights in sentences
 		for sent in origSentences:
 			weight = 0
 			
@@ -189,41 +186,44 @@ class Summarizer:
 			sentWeight[sent] = weight
 			totalWeightOfDocument+=weight
 
+		# Actually compute the ranking
 		for sent in origSentences:
 			sentRank[sent] = float(sentWeight[sent])/float(totalWeightOfDocument)
 
 		self.mostImportant = []
+		self.rankings = {}
+
+		# Sorts the most important values
 		for key, value in sorted(sentRank.iteritems(), key=lambda (v,k): (k,v), reverse=True):
 			self.mostImportant.append(key)
+			self.rankings[key] = value
 		
 
 		mostImportantModified = self.mostImportant[:self.numsentences]
 		outputSentences = []
+
+		# Outputs the most important sentences
 		for sent in origSentences:
 			if sent in mostImportantModified:
 				outputSentences.append(sent)
 
-
-		'''
-		for sent in outputSentences:
-			print(sent)
-
-		pprint(mostImportant)
-		'''
-		
-
-
-
-
-	
-		#pprint(mostImportant)
-		#for sent in outputSentences:
-		#	print sent
-		#print(outputSentences)
-
 		
 		f = open(self.outfile,"w")
 		f.write('Article Summary -- '+str(numsentences)+' sentences -- By: David Levi\n\n')
+		if(category):
+			if(category=='Str'):
+				cat = 'Struggle'
+			elif(category=='Pol'):
+				cat = 'Politics'
+			elif(category=='Dis'):
+				cat = 'Disaster'
+			elif(category=='Cri'):
+				cat = 'Crime'
+			else:
+				cat = 'Other'
+			f.write('Category: '+str(cat)+'\n\n')
+		if(headline):
+			f.write(str(headline)+'\n\n')
 		for out in outputSentences:
 			f.write(out.encode('utf-8')+'\n')
 		f.close()
@@ -236,7 +236,8 @@ class Summarizer:
 	def printMostImportant(self):
 		for sent in self.mostImportant:
 			print('-'*60)
-			print(sent)
+			print(sent+'-->'+str(self.rankings[sent]))
+			#print(sent)
 			print('-'*60)
 				
 
@@ -244,12 +245,19 @@ if __name__ == '__main__':
 	mySummarizer = Summarizer()
 	#mySummarizer.train('trainfile.txt')
 	#mySummarizer.readTrainFile()
-	headline = 'Trump'
+
+	headline = ''
 	infile = raw_input('Please enter document you would like summarized: ')
 	outfile = raw_input('Please enter document you would like the summary to be written to: ')
 	sentenceNumber = raw_input('Please enter the number of sentences you would like the summary to be: ')
-	mySummarizer.summarize(infile,outfile,int(sentenceNumber))
-	mySummarizer.printMostImportant()
+	category = Tester(infile)
+	result = category.execute_tests()
+	mySummarizer.summarize(infile,outfile,int(sentenceNumber),headline,result)
+	ans = raw_input('Would you like to see the sentence rank [y/n]? ')
+	if(ans=='y'):
+		mySummarizer.printMostImportant()
+	else:
+		print('Goodbye!')
 
 
 
